@@ -14,7 +14,7 @@ step1 <- function(dir, # Parent directory containing all of the files to be uplo
                   ){
   # Setup ----
   ## Package Loading ----
-  library(tidyverse)
+  pacman::p_load(assertthat, tidyverse)
   
   ## Options ----
   options(scipen=100)
@@ -28,17 +28,19 @@ step1 <- function(dir, # Parent directory containing all of the files to be uplo
   if (!is.string(dir)){
     stop(print("dir must be entered as a string. Please update dir to comply."))
   }
-  if ((!is.numeric(checkpoint) & checkpoint <= 0) | !is.na(checkpoint)){
+  if (!is.numeric(checkpoint) & checkpoint <= 0){
     stop(print("checkpoint must be entered as a positive integer or 'NA'. Please update checkpoint to comply."))
   }
-  if (!any(str_detect(list.files(path = data,
-                                 recursive = T,
-                                 full.names = T),"\\.csv"))){
-    stop(paste("Submitted files must be in .csv format. A total of",
-               length(str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv")[str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv") == FALSE]), 
-               "files do not have a .csv extension:",
-               str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv")[str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv") == FALSE],
-               sep = " "))
+  if (!is.na(checkpoint)){
+    if (!any(str_detect(list.files(path = data,
+                                   recursive = T,
+                                   full.names = T),"\\.csv"))){
+      stop(paste("Submitted files must be in .csv format. A total of",
+                 length(str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv")[str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv") == FALSE]), 
+                 "files do not have a .csv extension:",
+                 str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv")[str_detect(list.files(path = data, recursive = T, full.names = T),"\\.csv") == FALSE],
+                 sep = " "))
+    }
   }
 
   
