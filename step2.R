@@ -7,15 +7,50 @@ step2 <- function(df, # Dataframe should be formatted such that each row represe
                       # of elements (e.g., Pt A's data while watching Movie B in Run C).
                       # NAs can, and likely will, be present. R will ignore these when
                       # running correlations.
-                  vars, # An array of variable names constituting the unique elements 
-                        # being compared in your RSA. These should be contained within
-                        # your column names such that a grep function could find them
+                  vars = NA, # An array of variable names constituting the unique elements 
+                             # being compared in your RSA. These should be contained within
+                             # your column names, separated by underscores, and entered in 
+                             # the order they appear. So, if an example column name for neuro 
+                             # data was "P101_amygdala_run1_y", I could write: 
+                             # vars = c("PID", "ROI", "Run", "Dimension"). Value of NA is acceptable.
                   output = "long") # Future functionality that will allow for matrix output,
                                    # perhaps helpful for spatial analyses, or long format,
                                    # helpful for a traditional ANOVA or regression.
 {
   # Setup ----
   ## Package Loading ----
+  pacman::p_load(tidyverse)
+  source("C:/Users/tui81100/Dropbox/My PC (UncleSplashysSaddnessEmporium)/Desktop/Scripts/stinkR/removeNAs.R")
+  source("C:/Users/tui81100/Dropbox/My PC (UncleSplashysSaddnessEmporium)/Desktop/Scripts/stinkR/catdims.R")
+  # source("C:/Users/tui81100/Dropbox/My PC (UncleSplashysSaddnessEmporium)/Desktop/Scripts/stinkR/colvars.R")
+  source("C:/Users/tui81100/Dropbox/My PC (UncleSplashysSaddnessEmporium)/Desktop/Scripts/stinkR/xyzcompare.R")
+  
+  vars = c("PID", "ROI", "Run", "Cond", "Dim")
+  
+  # Removing any rows that only contain NA values ----
+  df <- removeNAs(df = df)
+  
+  # Concatenating the X,Y, & Z coordinates into a single column ----
+  df <- catdims(df = df)
+  
+  # Creating variables from the contents of column names ----
+  for (i in 1:length(vars)){
+  # Create a new variable from the i position in the array vars----
+  # Assign to that variable all of the unique elements that can be found from that same
+  # position amongst the different column names throughout the dataframe.
+  assign(vars[i], unique(unlist(strsplit(colnames(df), 
+                                         split = "_", 
+                                         fixed = T))[seq(i,
+                                                         length(colnames(df)) * length(vars),
+                                                         length(vars))]))
+  }
+  
+  # Checking that the the coordinates for all future comparisons match each other.
+  summary <- xyzcompare(df = df,
+                        vars = list(PID, ROI))
+  
+  # Removes superfluous y and z columns----
+  df <- df[,-which(yzcols == TRUE)]
   
   df_cor <- data.frame(matrix(NA, 
                               nrow = length(PIDs) * length(Vids), 
