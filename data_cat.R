@@ -1,32 +1,30 @@
-## step1.R | v2022.02.02
+## data_cat.R | v2022.02.25
 
-# I used step1 because that's what I colloquially think of this as. I'm sure other 
-# RSA approaches might handle this differently.
-step1 <- function(dir, # Parent directory containing all of the files to be uploaded; 
-                       # should not contain any files that will not be uploaded or analyzed. 
-                       # Files must be of .csv type and contain four dimensions in the following
-                       # order: x, y, z, value. These should also ideally be contained with in 
-                       # 4 rows of 1 column and separated by commas.
-                  checkpoint = 100, # Numeric value determining after how many files R should 
-                                   # output a progress report. Can take a numeric value or 'NA' 
-                                   # to be turned off.
-                  type = NA) # Future functionality to differentiate between neural and behavioral data. 
+# I've found RSA easiest to appraoch if I house all of the data within a single, well-structured dataframe. 
+# As such, this should be the first step in your RSA data processing pipeline.
+data_cat <- function(dir, # Parent directory containing all of the files to be uploaded; 
+                               # should not contain any files that will not be uploaded or analyzed. 
+                               # Files must be of .csv type and contain four dimensions in the following
+                               # order: x, y, z, value. These should also ideally be contained with in 
+                               # 4 rows of 1 column and separated by commas.
+                     checkpoint = NA, # Numeric value determining after how many files R should 
+                                       # output a progress report. Can take a numeric value or 'NA' 
+                                       # to be turned off.
+                     type = NA) # Future functionality to differentiate between neural and behavioral data. 
+
 {## Package Loading ----
   pacman::p_load(assertthat, tidyverse)
   source("C:/Users/tui81100/Dropbox/My PC (UncleSplashysSaddnessEmporium)/Desktop/Scripts/stinkR/restructure.R", local = TRUE)
   source("C:/Users/tui81100/Dropbox/My PC (UncleSplashysSaddnessEmporium)/Desktop/Scripts/stinkR/make_df.R", local = TRUE)
-  
-  ## Options ----
-  options(scipen=100)
-  options(digits=3)
-  options(contrasts = c("contr.helmert", "contr.poly"))
 
   ## Initial Errors ----
   if (!is.string(dir)){
     stop(print("dir must be entered as a string. Please update dir to comply."))
   }
-  if (!is.numeric(checkpoint) & checkpoint <= 0){
-    stop(print("checkpoint must be entered as a positive integer or 'NA'. Please update checkpoint to comply."))
+  if (!is.na(checkpoint)){
+    if (!is.numeric(checkpoint) & checkpoint <= 0){
+      stop(print("checkpoint must be entered as a positive integer or 'NA'. Please update checkpoint to comply."))
+    }
   }
   if (!is.na(checkpoint)){
     if (!any(str_detect(list.files(path = dir,
@@ -39,6 +37,17 @@ step1 <- function(dir, # Parent directory containing all of the files to be uplo
                  sep = " "))
     }
   }
+  if (!is.na(checkpoint)){
+    if (length(list.files(path = dir, recursive = T)) <= checkpoint){
+      stop(paste("The checkpoint marker you indicated is smaller than the number of files you have to upload (",
+                 length(list.files(path = dir, recursive = T)),
+                 "). Please respecify checkpoint to be a lower value, or leave it blank and let the function automatically specify checkpoints for you!",
+                 sep = " "))
+    }
+  }
+  
+  ## Printing Steps ----
+  print("Creating a new dataframe to house all of the data . . .")
   
   ## Creating the Primary Dataframe ----
   dims <- c("x","y","z","val")
@@ -47,7 +56,8 @@ step1 <- function(dir, # Parent directory containing all of the files to be uplo
   
   cols <- list.files(path = dir, 
                      recursive = T) %>%
-          restructure(array = .)
+          restructure(array = .,
+                      subcols = dims)
 
   ## Defining Rows ----
   rows <-1
@@ -55,12 +65,22 @@ step1 <- function(dir, # Parent directory containing all of the files to be uplo
   ## Creating Dataframe ----
   df <- make_df(rows = rows,
                 cols = cols)
+  rm(rows)
+  
+  ## Printing Steps ----
+  print("Initiating transfer of data to new dataframe . . .")
 
   ## Creating Checkpoints ----
   if (!is.na(checkpoint)){
     k <- seq(checkpoint,
              length(list.files(path = dir, recursive = T)), 
              checkpoint)
+  }
+  
+  if (is.na(checkpoint)){
+    k <- seq(1,
+             length(list.files(path = dir, recursive = T)), 
+             round(length(list.files(path = dir, recursive = T))/4))
   }
 
   # Datawriting Loop ----
@@ -102,27 +122,27 @@ step1 <- function(dir, # Parent directory containing all of the files to be uplo
     }
 
     ## Reading in the Data from File i ----
+    df_temp <- list.files(path = dir,
+                                 recursive = T,
+                                 full.names = T)[i] %>%
+               read.csv(header = F,
+                         sep=",",
+                         dec = ".",
+                         stringsAsFactors = F) %>%
     ## Transposing the Dataframe ----
+               t() %>%
     ## Separating Cells By Commas ----
-    df_temp <- as.data.frame(strsplit(x = t(read.csv(file = list.files(path = dir,
-                                                                       recursive = T,
-                                                                       full.names = T)[i],
-                                                     header = F,
-                                                     sep=",",
-                                                     dec = ".",
-                                                     stringsAsFactors = F)),
-                                      split = " ",
-                                      fixed = T))
+               strsplit(split = " ",
+                         fixed = T) %>%
+               as.data.frame()
 
-    ## Resizing df If Necessary ----
+    ## Resizing df If Not Enough Rows ----
     if (length(rownames(df)) < length(rownames(df_temp))){
       rows <-1:(length(rownames(df_temp)) - length(rownames(df)))
-      df_temp2 <- data.frame(matrix(NA,
-                              nrow = length(rows),
-                              ncol = length(cols),
-                              dimnames = list(rows, cols)))
+      df_temp2 <- make_df(rows = rows,
+                          cols = cols)
       df <- rbind(df, df_temp2)
-      rm(df_temp2)
+      rm(df_temp2, rows)
     }
     
     ## Noting Filename ----
@@ -133,14 +153,26 @@ step1 <- function(dir, # Parent directory containing all of the files to be uplo
                 str_replace_all(pattern = "^.*\\-|^.*\\.", 
                                 replacement = "") 
     
-    ## Copying Data to Final df ----
-    df[1:length(rownames(df_og)), grep(filename, colnames(df))] <- df_og
+    ## Copying Data to Final df Based Upon Filename----
+    df[1:length(rownames(df_temp)), grep(filename, colnames(df))] <- df_temp
     
     ## Outputting Progress ----
-    if (any(i == k) & !is.na(checkpoint)){
-      print(paste0("Files completed as of ", Sys.time(), ": ", i))
+    if (any(i == k)){
+      print(paste0("Files completed as of ", 
+                   Sys.time(), 
+                   ": ", 
+                   i, 
+                   " (", 
+                   round((i/length(list.files(path = dir, recursive = T)) * 100),digits = 0) ,"% complete)"))
     }
   } 
-  rm(df_temp)
+  
+  ## Printing Steps ----
+  print("Data transfer complete . . .")
+  
+  ## Printing Steps ----
+  print("Data transposed during transfer")
+  
+  rm(df_temp, cols, dims, filename, i, k)
   return(df)
 }
